@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSanctuarySocket } from '@/hooks/useSanctuarySocket';
 import { ReactionOverlay } from './AnimatedReaction';
 import { ResizableChatPanel } from './ResizableChatPanel';
+import ComprehensiveAudioSettings from './ComprehensiveAudioSettings';
 import { 
   Mic, 
   MicOff, 
@@ -304,14 +305,14 @@ useEffect(() => {
             emoji: data.emoji,
             timestamp: Date.now()
           }];
-          // Limit to 5 active reactions for performance
-          return newReactions.slice(-5);
+          // Limit to 10 active reactions for better visual experience
+          return newReactions.slice(-10);
         });
 
-        // Remove reaction after 3 seconds
+        // Remove reaction after 3 seconds with staggered removal
         setTimeout(() => {
           setReactions(prev => prev.filter(r => r.id !== reactionId));
-        }, 3000);
+        }, 2500 + Math.random() * 1000); // Stagger removal between 2.5-3.5s
 
         // Add to chat messages
         const reactionMessage: ChatMessage = {
@@ -536,6 +537,14 @@ const monitorAudioLevel = () => {
                 Invite Others
               </Button>
               
+              <ComprehensiveAudioSettings 
+                sessionId={session.id}
+                currentUser={currentUser}
+                onVoiceChange={(voiceId) => console.log('Voice changed:', voiceId)}
+                onRecordingToggle={(enabled) => console.log('Recording toggled:', enabled)}
+                onBreakoutRoomCreate={(name) => console.log('Breakout room created:', name)}
+              />
+              
               <Button
                 variant="outline"
                 size="sm"
@@ -672,6 +681,9 @@ const monitorAudioLevel = () => {
                         <div>
                           <div className="flex items-center space-x-2">
                             <p className="font-semibold text-lg">{participant.alias}</p>
+                            {participant.id === currentUser.id && (
+                              <Badge variant="default" className="text-xs bg-primary text-primary-foreground">You</Badge>
+                            )}
                             {participant.isHost && (
                               <Badge className="bg-gradient-to-r from-primary to-primary/80">
                                 <Sparkles className="h-3 w-3 mr-1" />

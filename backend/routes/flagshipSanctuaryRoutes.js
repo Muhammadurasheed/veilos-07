@@ -951,17 +951,27 @@ router.post('/:sessionId/join', optionalAuthMiddleware, async (req, res) => {
       return res.error('Join request rejected by moderation system', 403);
     }
 
+    // ✅ ENFORCE PERSISTENT MODERATION STATES ON HTTP JOIN
+    const isHostMutedPersistent = Array.isArray(session.hostMutedParticipants) && session.hostMutedParticipants.includes(userId);
+    const isBannedPersistent = Array.isArray(session.bannedParticipants) && session.bannedParticipants.includes(userId);
+    
+    // Block banned users from joining entirely
+    if (isBannedPersistent) {
+      console.log('🚫 Banned user attempted to join:', userId);
+      return res.error('You have been banned from this session', 403);
+    }
+
     // Create participant object
-    const isHostMutedInitially = Array.isArray(session.hostMutedParticipants) && session.hostMutedParticipants.includes(userId);
     const participant = {
       id: userId,
       alias: participantAlias,
       isHost: session.hostId === userId,
       isModerator: session.hostId === userId,
       isMuted: true, // Start muted for better audio management
-      isHostMuted: isHostMutedInitially, // Persist host-enforced mute across refresh
+      isHostMuted: isHostMutedPersistent, // Persist host-enforced mute across refresh
       isAnonymous,
       isBanned: false,
+      isKicked: false, // Track kick status
       handRaised: false,
       joinedAt: new Date(),
       avatarIndex: req.user?.avatarIndex || Math.floor(Math.random() * 12) + 1,
@@ -1505,5 +1515,14 @@ router.post('/:sessionId/start', authMiddleware, async (req, res) => {
     });
   }
 });
+
+// Include voice preview routes
+router.use('/', require('./voicePreviewRoutes'));
+
+// Include recording routes
+router.use('/', require('./recordingRoutes'));
+
+// Include breakout room routes
+router.use('/', require('./breakoutRoomRoutes'));
 
 module.exports = router;

@@ -55,11 +55,12 @@ export const SessionWaitingRoom: React.FC<SessionWaitingRoomProps> = ({
           seconds: 0,
           progress: 100
         });
-        // Auto-refresh the page to check session status
+        // Auto-redirect to session after countdown
         setTimeout(() => {
-          console.log('✅ Countdown complete, showing acknowledgment...');
-          onCountdownComplete?.();
-        }, 500);
+          console.log('✅ Countdown complete, redirecting to live session...');
+          // Force page refresh to trigger session conversion
+          window.location.reload();
+        }, 1000);
         return;
       }
 
