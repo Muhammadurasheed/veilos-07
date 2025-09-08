@@ -905,6 +905,14 @@ router.post('/:sessionId/join', optionalAuthMiddleware, async (req, res) => {
     // Generate user ID for anonymous users
     const userId = req.user?.id || `anon_${nanoid(8)}`;
     
+    // Enforce bans: prevent rejoin after kick
+    if (Array.isArray(session.bannedParticipants) && session.bannedParticipants.includes(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You have been removed from this session by a moderator'
+      });
+    }
+    
     // Check if already in session (more robust check)
     let existingParticipant = session.participants.find(p => p.id === userId);
     
@@ -944,12 +952,14 @@ router.post('/:sessionId/join', optionalAuthMiddleware, async (req, res) => {
     }
 
     // Create participant object
+    const isHostMutedInitially = Array.isArray(session.hostMutedParticipants) && session.hostMutedParticipants.includes(userId);
     const participant = {
       id: userId,
       alias: participantAlias,
       isHost: session.hostId === userId,
       isModerator: session.hostId === userId,
       isMuted: true, // Start muted for better audio management
+      isHostMuted: isHostMutedInitially, // Persist host-enforced mute across refresh
       isAnonymous,
       isBanned: false,
       handRaised: false,

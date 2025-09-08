@@ -95,6 +95,9 @@ const liveSanctuarySessionSchema = new mongoose.Schema({
     audioLevel: { type: Number, default: 0 },
     speakingTime: { type: Number, default: 0 }
   }],
+  // Persistent moderation state
+  hostMutedParticipants: [{ type: String }],
+  bannedParticipants: [{ type: String }],
   hostAlias: {
     type: String
   },

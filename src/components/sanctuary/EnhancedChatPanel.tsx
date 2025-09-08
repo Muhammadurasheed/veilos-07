@@ -324,7 +324,7 @@ export const EnhancedChatPanel = ({
                 ↳ Replying to previous message
               </div>
             )}
-            <div className="bg-muted rounded p-2 mt-1">
+            <div className="bg-muted rounded p-2 mt-1 overflow-hidden">
               {message.attachment.fileType?.startsWith('image/') ? (
                 <img 
                   src={message.attachment.file || message.attachment.url || message.attachment.preview} 

@@ -520,6 +520,16 @@ const initializeSocket = (server) => {
         mutedBy: socket.userId,
         timestamp: new Date().toISOString()
       });
+
+      // Persist host mute to DB for refresh-proof enforcement
+      try {
+        await FlagshipSanctuarySession.updateOne(
+          { id: sessionId },
+          { $addToSet: { hostMutedParticipants: participantId } }
+        );
+      } catch (e) {
+        console.warn('Failed to persist host mute:', e.message);
+      }
     });
 
     // Host/moderator can unmute a participant
