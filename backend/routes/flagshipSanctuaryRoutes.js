@@ -1186,31 +1186,37 @@ router.post('/:sessionId/leave', optionalAuthMiddleware, async (req, res) => {
     
     console.log('👋 Leave request for session:', sessionId, 'User:', userId);
 
-    // Find session
-    const session = await LiveSanctuarySession.findOne({ id: sessionId });
+    // Use atomic findOneAndUpdate to prevent version conflicts
+    const session = await LiveSanctuarySession.findOneAndUpdate(
+      { 
+        id: sessionId,
+        'participants.id': userId
+      },
+      { 
+        $pull: { participants: { id: userId } },
+        $inc: { currentParticipants: -1 }
+      },
+      { 
+        new: true,
+        runValidators: true
+      }
+    );
     
     if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found'
+      // If no session found or user not in participants, still return success
+      console.log('⚠️ Session not found or user not in participants:', sessionId, userId);
+      return res.json({
+        success: true,
+        message: 'Successfully left session',
+        data: { sessionId, userId, remainingParticipants: 0 }
       });
     }
 
-    // Remove participant from session
-    const initialCount = session.participants.length;
-    session.participants = session.participants.filter(p => p.id !== userId);
-    const removedCount = initialCount - session.participants.length;
-    
-    if (removedCount > 0) {
-      session.currentParticipants = session.participants.length;
-      await session.save();
-      
-      console.log('✅ Participant removed from session:', {
-        sessionId,
-        userId,
-        remainingParticipants: session.currentParticipants
-      });
-    }
+    console.log('✅ Participant removed from session:', {
+      sessionId,
+      userId,
+      remainingParticipants: session.currentParticipants
+    });
 
     // Update Redis cache
     await redisService.removeParticipant(sessionId, userId);

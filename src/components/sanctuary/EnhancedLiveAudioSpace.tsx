@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useSanctuarySocket } from '@/hooks/useSanctuarySocket';
 import { ReactionOverlay } from './AnimatedReaction';
-import { EnhancedChatPanel } from './EnhancedChatPanel';
+import { ResizableChatPanel } from './ResizableChatPanel';
 import { 
   Mic, 
   MicOff, 
@@ -831,13 +831,13 @@ const monitorAudioLevel = () => {
             </Card>
 
             {/* Enhanced Chat Panel with Mention Support */}
-            <EnhancedChatPanel
+            <ResizableChatPanel
+              sessionId={session.id}
               isVisible={isChatVisible}
               onToggle={() => setIsChatVisible(false)}
               messages={messages}
               participants={participants}
               currentUserAlias={currentUser.alias}
-              sessionId={session.id}
               onSendMessage={handleSendMessage}
             />
 

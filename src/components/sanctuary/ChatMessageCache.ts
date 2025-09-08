@@ -8,6 +8,7 @@ interface CachedMessage {
   type: 'text' | 'system' | 'emoji-reaction' | 'media';
   attachment?: any;
   replyTo?: string;
+  replyToMessage?: CachedMessage; // Store full reply context
 }
 
 interface MessageCache {
@@ -63,9 +64,30 @@ class ChatMessageCacheManager {
     const exists = existingMessages.find(m => m.id === message.id);
     
     if (!exists) {
+      // If this is a reply, find and attach the parent message
+      if (message.replyTo) {
+        const parentMessage = existingMessages.find(m => m.id === message.replyTo);
+        if (parentMessage) {
+          message.replyToMessage = parentMessage;
+        }
+      }
+      
       const updatedMessages = [...existingMessages, message];
       this.saveMessages(sessionId, updatedMessages);
     }
+  }
+
+  // Update reply chains when loading from cache
+  hydrateReplyChains(messages: CachedMessage[]): CachedMessage[] {
+    return messages.map(message => {
+      if (message.replyTo && !message.replyToMessage) {
+        const parentMessage = messages.find(m => m.id === message.replyTo);
+        if (parentMessage) {
+          return { ...message, replyToMessage: parentMessage };
+        }
+      }
+      return message;
+    });
   }
 
   clearMessages(sessionId: string): void {

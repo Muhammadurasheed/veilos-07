@@ -487,34 +487,49 @@ export const useFlagshipSanctuary = (options: UseFlagshipSanctuaryOptions = {}):
   }, [toast, joinRetryRef]);
 
   const leaveSession = useCallback(async (): Promise<void> => {
-    if (!session || !currentParticipant) return;
-    
+    if (!session || !currentParticipant) {
+      console.log('❌ Cannot leave: No session or participant data');
+      // Still clear local state and redirect
+      setSession(null);
+      setCurrentParticipant(null);
+      setJoinStatus('idle');
+      setParticipants([]);
+      return;
+    }
+
+    console.log('🚪 Leaving session:', session.id);
+    setIsLoading(true);
+
     try {
-      await FlagshipSanctuaryApi.leaveSession(session.id);
+      // Clear local state immediately to prevent stuck loading
+      const sessionId = session.id;
+      setSession(null);
+      setCurrentParticipant(null);
+      setJoinStatus('idle');
+      setParticipants([]);
       
       // Leave socket room
       if (socketRef.current) {
         socketRef.current.emit('sanctuary:leave', {
-          sessionId: session.id,
+          sessionId,
           participantId: currentParticipant.id
         });
       }
       
-      // Reset state
-      setSession(null);
-      setCurrentParticipant(null);
-      setParticipants([]);
+      // Make API call in background
+      await FlagshipSanctuaryApi.leaveSession(sessionId);
+      
+      console.log('✅ Successfully left session');
       
       toast({
-        title: 'Left Sanctuary',
-        description: 'You have safely left the sanctuary',
+        title: 'Left Successfully',
+        description: 'You have left the sanctuary session',
       });
     } catch (error: any) {
       console.error('❌ Failed to leave session:', error);
-      // Reset state anyway
-      setSession(null);
-      setCurrentParticipant(null);
-      setParticipants([]);
+      // Don't show error toast for leave failures - user is already gone
+    } finally {
+      setIsLoading(false);
     }
   }, [session, currentParticipant, toast]);
 
