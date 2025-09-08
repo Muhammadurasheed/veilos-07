@@ -487,7 +487,7 @@ const initializeSocket = (server) => {
       }
     });
 
-    socket.on('mute_participant', (data) => {
+    socket.on('mute_participant', async (data) => {
       const { sessionId, participantId } = data;
       
       // Update participant tracker
@@ -533,7 +533,7 @@ const initializeSocket = (server) => {
     });
 
     // Host/moderator can unmute a participant
-    socket.on('unmute_participant', (data) => {
+    socket.on('unmute_participant', async (data) => {
       const { sessionId, participantId } = data;
 
       // Update participant tracker
@@ -566,10 +566,20 @@ const initializeSocket = (server) => {
         unmutedBy: socket.userId,
         timestamp: new Date().toISOString()
       });
+
+      // Persist removal from host mute list
+      try {
+        await FlagshipSanctuarySession.updateOne(
+          { id: sessionId },
+          { $pull: { hostMutedParticipants: participantId } }
+        );
+      } catch (e) {
+        console.warn('Failed to persist host unmute:', e.message);
+      }
     });
 
     // Host/moderator can unmute everyone
-    socket.on('unmute_all', (data) => {
+    socket.on('unmute_all', async (data) => {
       const { sessionId } = data;
 
       if (io.participantTracker && io.participantTracker.has(sessionId)) {
@@ -590,6 +600,16 @@ const initializeSocket = (server) => {
         });
       }
 
+      // Persist clearing of host mute list in DB
+      try {
+        await FlagshipSanctuarySession.updateOne(
+          { id: sessionId },
+          { $set: { hostMutedParticipants: [] } }
+        );
+      } catch (e) {
+        console.warn('Failed to clear host mute list:', e.message);
+      }
+ 
       io.to(`flagship_${sessionId}`).emit('participants_unmuted', {
         sessionId,
         unmutedBy: socket.userId,
@@ -597,7 +617,7 @@ const initializeSocket = (server) => {
       });
     });
 
-    socket.on('kick_participant', (data) => {
+    socket.on('kick_participant', async (data) => {
       const { sessionId, participantId } = data;
       
       // Remove from participant tracker
@@ -628,6 +648,16 @@ const initializeSocket = (server) => {
         kickedBy: socket.userId,
         timestamp: new Date().toISOString()
       });
+
+      // Persist ban to prevent rejoin after refresh
+      try {
+        await FlagshipSanctuarySession.updateOne(
+          { id: sessionId },
+          { $addToSet: { bannedParticipants: participantId } }
+        );
+      } catch (e) {
+        console.warn('Failed to persist participant ban:', e.message);
+      }
     });
 
     // Handle audio room join for flagship sanctuary  
@@ -660,6 +690,32 @@ const initializeSocket = (server) => {
           joinedAt: new Date().toISOString(),
           socketId: socket.id
         };
+
+        // Enforce persistent moderation state (host-muted/banned)
+        try {
+          const dbSession = await FlagshipSanctuarySession.findOne({ id: sessionId }, { hostMutedParticipants: 1, bannedParticipants: 1 });
+          if (dbSession?.bannedParticipants?.includes(socket.userId)) {
+            // Do not allow join
+            socket.emit('kicked_from_room', {
+              sessionId,
+              kickedBy: 'system',
+              reason: 'You have been removed by the host',
+              timestamp: new Date().toISOString()
+            });
+            socket.leave(`audio_room_${sessionId}`);
+            return;
+          }
+          if (dbSession?.hostMutedParticipants?.includes(socket.userId)) {
+            enhancedParticipant.isMuted = true;
+            socket.emit('force_muted', {
+              sessionId,
+              mutedBy: 'host',
+              timestamp: new Date().toISOString()
+            });
+          }
+        } catch (e) {
+          console.warn('Failed to enforce persistent moderation state:', e.message);
+        }
 
         // Store participant in socket for easy access
         socket.audioParticipant = enhancedParticipant;

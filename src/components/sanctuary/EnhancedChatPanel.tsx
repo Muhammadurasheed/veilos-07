@@ -47,21 +47,31 @@ export const EnhancedChatPanel = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showMediaPreview, setShowMediaPreview] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [cachedMessages, setCachedMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load cached messages on mount
   useEffect(() => {
-    if (sessionId) {
-      const cachedMessages = chatMessageCache.loadMessages(sessionId);
-      // Only show cached messages if current messages array is empty
-      if (messages.length === 0 && cachedMessages.length > 0) {
-        console.log('📥 Loading cached messages:', cachedMessages.length);
-        // You might want to emit these to the parent component
-      }
+    if (!sessionId) return;
+    const cached = chatMessageCache.loadMessages(sessionId);
+    if (cached.length > 0) {
+      const hydrated = chatMessageCache.hydrateReplyChains(cached);
+      const mapped: ChatMessage[] = hydrated.map(m => ({
+        id: m.id,
+        senderAlias: m.senderAlias,
+        senderAvatarIndex: m.senderAvatarIndex,
+        content: m.content,
+        timestamp: new Date(m.timestamp),
+        type: m.type,
+        attachment: m.attachment,
+        replyTo: m.replyTo
+      }));
+      setCachedMessages(mapped);
+      console.log('📥 Cached messages restored:', mapped.length);
     }
-  }, [sessionId, messages.length]);
+  }, [sessionId]);
 
   // Cache messages when they change
   useEffect(() => {
@@ -434,8 +444,8 @@ export const EnhancedChatPanel = ({
       </CardHeader>
       <CardContent className="p-0">
         {/* Messages Container with Fixed Height */}
-        <div className="h-64 overflow-y-auto space-y-3 px-4 pb-3">
-          {messages.map((message) => (
+        <div className="h-64 overflow-y-auto overflow-x-hidden space-y-3 px-4 pb-3">
+          {(messages.length > 0 ? messages : cachedMessages).map((message) => (
             <div key={message.id} className="space-y-1">
               {renderMessage(message)}
             </div>
