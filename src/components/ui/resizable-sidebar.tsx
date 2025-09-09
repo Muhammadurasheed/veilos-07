@@ -83,13 +83,13 @@ export const ResizableSidebar = ({
       ref={sidebarRef}
       className={cn(
         "relative bg-background border-r border-border transition-all duration-200 ease-in-out",
-        "z-[99999]", // Highest z-index to stay above all components
+        "z-[9999]", // High z-index to stay above components
         isResizing && "select-none",
         className
       )}
       style={{ 
         position: 'relative',
-        zIndex: 99999,
+        zIndex: 9999,
         width: actualWidth,
         minWidth: collapsed && collapsible ? 60 : minWidth,
         maxWidth: collapsed && collapsible ? 60 : maxWidth

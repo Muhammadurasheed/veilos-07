@@ -265,16 +265,18 @@ class ElevenLabsService {
 const elevenLabsService = new ElevenLabsService();
 
 // Validate API key on initialization
-if (process.env.ELEVENLABS_API_KEY) {
+if (process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_API_KEY.startsWith('sk_')) {
   elevenLabsService.validateApiKey().then(result => {
     if (result.valid) {
       console.log('✅ ElevenLabs service initialized successfully');
     } else {
       console.warn('⚠️ ElevenLabs API key validation failed, voice modulation will be disabled');
     }
+  }).catch(error => {
+    console.warn('⚠️ ElevenLabs initialization error:', error.message);
   });
 } else {
-  console.warn('⚠️ ElevenLabs API key not found, voice modulation will be disabled');
+  console.warn('⚠️ ElevenLabs API key not found or invalid format, voice modulation will be disabled');
 }
 
 module.exports = elevenLabsService;

@@ -17,14 +17,14 @@ import { SanctuaryApi } from '@/services/api';
 import { SanctuaryMessage } from '@/types';
 import { Shield, Send, Clock, Users, MoreHorizontal, Flag, Mic, MicOff, Volume2, Settings } from 'lucide-react';
 import LiveAudioRoom from '@/components/sanctuary/LiveAudioRoom';
-import { FunctionalBreakoutManager } from '@/components/sanctuary/FunctionalBreakoutManager';
+import { WorkingBreakoutRoomManager } from '@/components/sanctuary/WorkingBreakoutRoomManager';
 import SessionRecorder from '@/components/sanctuary/SessionRecorder';
 import AIModerationDashboard from '@/components/sanctuary/AIModerationDashboard';
 import { RealTimeChat } from '@/components/sanctuary/RealTimeChat';
 import { ResizableChatPanel } from './ResizableChatPanel';
 import ComprehensiveAudioSettings from './ComprehensiveAudioSettings';
-import { AnimatedReactionSystem } from './AnimatedReactionSystem';
-import { WorkingBreakoutRoomManager } from './WorkingBreakoutRoomManager';
+import { EnhancedAnimatedReactionSystem } from './EnhancedAnimatedReactionSystem';
+// removed duplicate import
 import { ModernScrollbar } from '../ui/modern-scrollbar';
 
 // Enhanced auto-resizing textarea component
@@ -869,12 +869,12 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
                     >
                       {audioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
                     </Button>
-                    <Input
+                    <AutoResizeTextarea
                       value={newMessage}
-                      onChange={e => setNewMessage(e.target.value)}
-                      placeholder="Type your message..."
-                      className="flex-1"
-                      onKeyDown={e => {
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewMessage(e.target.value)}
+                      placeholder="Type your message... (Shift + Enter for new line)"
+                      className="flex-1 min-h-10 p-2 border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                      onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           handleSendMessage();
@@ -973,6 +973,18 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Enhanced Reaction System */}
+      {participant && (
+        <EnhancedAnimatedReactionSystem
+          sessionId={session?.id || ''}
+          participantId={participant.id}
+          onReactionSent={(reaction) => {
+            console.log('Reaction sent:', reaction);
+            // Could emit via socket for real-time reactions
+          }}
+        />
+      )}
     </>
   );
 };
