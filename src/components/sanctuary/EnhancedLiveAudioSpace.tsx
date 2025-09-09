@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useSanctuarySocket } from '@/hooks/useSanctuarySocket';
 import { ReactionOverlay } from './AnimatedReaction';
@@ -29,7 +30,8 @@ import {
   Send,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  Grid3X3
 } from 'lucide-react';
 import type { LiveSanctuarySession, LiveParticipant } from '@/types/sanctuary';
 
@@ -88,6 +90,7 @@ export const EnhancedLiveAudioSpace = ({ session, currentUser, onLeave }: Enhanc
   const [newMessage, setNewMessage] = useState('');
   const [inviteLink, setInviteLink] = useState('');
   const [reactions, setReactions] = useState<Array<{ id: string; emoji: string; timestamp: number }>>([]);
+  const [showBreakoutManager, setShowBreakoutManager] = useState(false);
   
   // Floating emoji reactions
   const { reactions: floatingReactions, addReaction } = useFloatingEmojiReactions();
@@ -518,7 +521,7 @@ const monitorAudioLevel = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5">
       {/* Header */}
-      <div className="bg-background/95 backdrop-blur border-b sticky top-0 z-50">
+      <div className="bg-background/95 backdrop-blur border-b sticky top-0 z-40">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -549,6 +552,19 @@ const monitorAudioLevel = () => {
                 onRecordingToggle={(enabled) => console.log('Recording toggled:', enabled)}
                 onBreakoutRoomCreate={(name) => console.log('Breakout room created:', name)}
               />
+
+              {/* Breakout Rooms Management Button */}
+              {(currentUser.isHost || currentUser.isModerator) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBreakoutManager(true)}
+                  className="hidden sm:flex"
+                >
+                  <Grid3X3 className="h-4 w-4 mr-2" />
+                  Manage Breakouts
+                </Button>
+              )}
               
               <Button
                 variant="outline"
@@ -879,6 +895,58 @@ const monitorAudioLevel = () => {
           </div>
         </div>
       </div>
+
+      {/* Breakout Room Manager Dialog */}
+      {showBreakoutManager && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold flex items-center">
+                  <Grid3X3 className="h-5 w-5 mr-2" />
+                  Breakout Rooms Management
+                </h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowBreakoutManager(false)}
+                >
+                  ×
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Create and manage smaller group discussions for focused conversations
+              </p>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              <EnhancedBreakoutRoomManager
+                sessionId={session.id}
+                currentUser={{
+                  ...currentUser,
+                  isHost: currentUser.isHost || false,
+                  isModerator: currentUser.isModerator || false
+                }}
+                participants={participants.map(p => ({
+                  ...p,
+                  avatarIndex: p.avatarIndex || 1,
+                  isHost: p.isHost || false,
+                  isModerator: p.isModerator || false
+                }))}
+                onJoinRoom={(roomId) => {
+                  console.log('Joining breakout room:', roomId);
+                  toast({
+                    title: "Joining Breakout Room",
+                    description: "Connecting to the smaller group...",
+                  });
+                }}
+                onLeaveRoom={(roomId) => {
+                  console.log('Leaving breakout room:', roomId);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Emoji Reactions */}
       <FloatingEmojiReactions reactions={floatingReactions} />

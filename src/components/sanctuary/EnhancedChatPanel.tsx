@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Send, ChevronUp, Shield, AtSign, Paperclip, Reply } from 'lucide-react';
@@ -49,7 +50,7 @@ export const EnhancedChatPanel = ({
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [cachedMessages, setCachedMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load cached messages on mount
@@ -105,7 +106,7 @@ export const EnhancedChatPanel = ({
   };
 
   // Handle @ mentions
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     const position = e.target.selectionStart || 0;
     
@@ -536,13 +537,14 @@ export const EnhancedChatPanel = ({
               className="hidden"
             />
             <div className="relative flex-1">
-              <Input
+              <AutoResizeTextarea
                 ref={inputRef}
                 value={newMessage}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyPress}
-                placeholder={replyingTo ? "Reply to message..." : "Type @ to mention someone..."}
-                className="pr-20"
+                placeholder={replyingTo ? "Reply to message... (Shift+Enter for new line)" : "Type @ to mention someone... (Shift+Enter for new line)"}
+                minRows={1}
+                maxRows={4}
               />
             </div>
             <Button
