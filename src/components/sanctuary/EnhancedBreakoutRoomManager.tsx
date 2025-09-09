@@ -85,15 +85,17 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
 
   const fetchBreakoutRooms = async () => {
     try {
-      const response = await fetch(`/api/breakout-rooms/session/${sessionId}`, {
+      const response = await fetch(`/api/flagship-sanctuary/${sessionId}/breakout-rooms`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
         }
       });
       
       if (response.ok) {
         const data = await response.json();
-        setBreakoutRooms(data.rooms || []);
+        setBreakoutRooms(data.data?.rooms || data.rooms || []);
+      } else {
+        console.error('Failed to fetch breakout rooms:', response.status);
       }
     } catch (error) {
       console.error('Failed to fetch breakout rooms:', error);
@@ -111,14 +113,13 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
     }
 
     try {
-      const response = await fetch(`/api/breakout-rooms/create`, {
+      const response = await fetch(`/api/flagship-sanctuary/${sessionId}/breakout-rooms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
         },
         body: JSON.stringify({
-          parentSessionId: sessionId,
           name: newRoomName,
           topic: newRoomTopic,
           maxParticipants: newRoomMaxParticipants,
@@ -129,7 +130,8 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
 
       if (response.ok) {
         const data = await response.json();
-        setBreakoutRooms(prev => [...prev, data.room]);
+        const newRoom = data.data?.room || data.room;
+        setBreakoutRooms(prev => [...prev, newRoom]);
         setIsCreateDialogOpen(false);
         resetCreateForm();
         
@@ -138,7 +140,8 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
           description: `"${newRoomName}" breakout room is ready`
         });
       } else {
-        throw new Error('Failed to create room');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to create room');
       }
     } catch (error) {
       toast({
@@ -159,16 +162,12 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
 
   const joinBreakoutRoom = async (roomId: string) => {
     try {
-      const response = await fetch(`/api/breakout-rooms/${roomId}/join`, {
+      const response = await fetch(`/api/flagship-sanctuary/${sessionId}/breakout-rooms/${roomId}/join`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify({
-          participantId: currentUser.id,
-          participantAlias: currentUser.alias
-        })
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
+        }
       });
 
       if (response.ok) {
