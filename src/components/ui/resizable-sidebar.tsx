@@ -89,7 +89,7 @@ export const ResizableSidebar = ({
       )}
       style={{ 
         position: 'relative',
-        zIndex: 99999
+        zIndex: 99999,
         width: actualWidth,
         minWidth: collapsed && collapsible ? 60 : minWidth,
         maxWidth: collapsed && collapsible ? 60 : maxWidth

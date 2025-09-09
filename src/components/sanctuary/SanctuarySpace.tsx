@@ -760,7 +760,7 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
               <div className="sticky top-0 bg-gray-50 dark:bg-gray-900 py-2 mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 hidden md:block">Participants</h3>
               </div>
-              <div className="space-y-2">
+               <div className="space-y-2">
                 {/* Host if applicable */}
                 {isHost && participant && (
                   <div className="flex items-center gap-2 p-2 rounded-md bg-veilo-purple/10">
@@ -813,6 +813,7 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
                     )}
                   </div>
                 ))}
+               </div>
               </div>
             </ModernScrollbar>
 
@@ -854,6 +855,7 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
                 ))}
                 <div ref={messagesEndRef} />
               </div>
+            </ModernScrollbar>
               
               {/* Input area */}
               {participant ? (
@@ -898,7 +900,7 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
                     Join Now
                   </Button>
                 </div>
-              )}
+               )}
             </div>
           </div>
         </CardContent>
