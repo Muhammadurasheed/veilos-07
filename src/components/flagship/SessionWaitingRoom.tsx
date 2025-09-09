@@ -294,7 +294,7 @@ export const SessionWaitingRoom: React.FC<SessionWaitingRoomProps> = ({
           )}
 
           {/* Auto-join Notice */}
-          {showAutoJoinMessage && (
+          {showAutoJoinMessage && !isStartingNow && (
             <Card className="border-green-200 bg-green-50/50">
               <CardContent className="pt-4">
                 <div className="flex items-center space-x-2 text-green-700">

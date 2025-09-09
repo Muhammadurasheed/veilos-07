@@ -785,7 +785,7 @@ router.post('/schedule/:sessionId/start', authMiddleware, async (req, res) => {
 
 // ================== ENHANCED LIVE SESSIONS ==================
 
-// Fix the join endpoint to support optional auth for instant sessions
+// Fix the join endpoint to support optional auth for instant sessions - WITH STATE ENFORCEMENT
 router.post('/:sessionId/join', optionalAuthMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -796,7 +796,7 @@ router.post('/:sessionId/join', optionalAuthMiddleware, async (req, res) => {
       acknowledged = false
     } = req.body;
     
-    console.log('🚪 Enhanced join request:', {
+    console.log('🚪 Enhanced join request with state validation:', {
       sessionId,
       userId: req.user?.id || 'anonymous',
       acknowledged,
@@ -898,6 +898,24 @@ router.post('/:sessionId/join', optionalAuthMiddleware, async (req, res) => {
     if ((session.participants?.length || 0) >= session.maxParticipants) {
       return res.status(400).json({
         success: false,
+        message: 'Session is full'
+      });
+    }
+
+    // CRITICAL: Validate participant status to prevent refresh circumvention
+    const participantId = req.user?.id || `guest_${nanoid(8)}`;
+    const isHostMuted = session.hostMutedParticipants?.includes(participantId);
+    const isBanned = session.bannedParticipants?.includes(participantId);
+    
+    if (isBanned) {
+      return res.status(403).json({
+        success: false,
+        message: 'You have been removed from this session',
+        code: 'BANNED'
+      });
+    }
+
+    const participantAlias = alias || req.user?.alias || `Guest_${nanoid(4)}`;
         message: 'Session is full'
       });
     }

@@ -400,14 +400,44 @@ const initializeSocket = (server) => {
       });
     });
 
-    // Handle live audio room events
-    socket.on('join_audio_room', (data) => {
+    // Handle live audio room events - WITH STATE ENFORCEMENT
+    socket.on('join_audio_room', async (data) => {
       const { sessionId, participant } = data;
+      
+      socket.participantId = participant.id || socket.userId;
+      socket.participantAlias = participant.alias || socket.userAlias || 'Anonymous';
+
+      try {
+        // CRITICAL: Check host-muted/banned status from DB to prevent refresh circumvention
+        const session = await LiveSanctuarySession.findOne({ id: sessionId });
+        if (session) {
+          const isHostMuted = session.hostMutedParticipants?.includes(socket.participantId);
+          const isBanned = session.bannedParticipants?.includes(socket.participantId);
+          
+          if (isBanned) {
+            socket.emit('join_rejected', { 
+              reason: 'You have been removed from this session',
+              code: 'BANNED'
+            });
+            return;
+          }
+          
+          if (isHostMuted) {
+            // Allow join but enforce muted state
+            socket.emit('force_muted', {
+              sessionId,
+              reason: 'Host has muted you',
+              permanent: true,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check session state:', error);
+      }
       
       socket.join(`audio_room_${sessionId}`);
       socket.currentAudioRoom = sessionId;
-      socket.participantId = participant.id || socket.userId;
-      socket.participantAlias = participant.alias || socket.userAlias || 'Anonymous';
 
       // Update participant tracker for flagship sessions
       if (io.participantTracker && io.participantTracker.has(sessionId)) {
@@ -415,11 +445,12 @@ const initializeSocket = (server) => {
         const existingParticipant = sessionParticipants.get(socket.participantId);
         
         if (existingParticipant) {
-          // Update existing participant
+          // Update existing participant with persistent state
           sessionParticipants.set(socket.participantId, {
             ...existingParticipant,
             socketId: socket.id,
-            connectionStatus: 'connected'
+            connectionStatus: 'connected',
+            isMuted: existingParticipant.isMuted || (session?.hostMutedParticipants?.includes(socket.participantId) || false)
           });
         }
       }
@@ -436,7 +467,7 @@ const initializeSocket = (server) => {
         }
       });
       
-      console.log(`User ${socket.participantAlias} joined audio room ${sessionId}`);
+      console.log(`User ${socket.participantAlias} joined audio room ${sessionId} - State enforced from DB`);
     });
 
     socket.on('raise_hand', (data) => {

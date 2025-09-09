@@ -10,6 +10,8 @@ import { useSanctuarySocket } from '@/hooks/useSanctuarySocket';
 import { ReactionOverlay } from './AnimatedReaction';
 import { ResizableChatPanel } from './ResizableChatPanel';
 import ComprehensiveAudioSettings from './ComprehensiveAudioSettings';
+import { FloatingEmojiReactions, useFloatingEmojiReactions } from './FloatingEmojiReactions';
+import { EnhancedBreakoutRoomManager } from './EnhancedBreakoutRoomManager';
 import { 
   Mic, 
   MicOff, 
@@ -75,7 +77,7 @@ export const EnhancedLiveAudioSpace = ({ session, currentUser, onLeave }: Enhanc
   
   const [participants, setParticipants] = useState<LiveParticipant[]>(uniqueParticipants);
   const [audioLevel, setAudioLevel] = useState(0);
-  
+
   // Update participants when session data changes
   useEffect(() => {
     setParticipants(uniqueParticipants);
@@ -86,6 +88,9 @@ export const EnhancedLiveAudioSpace = ({ session, currentUser, onLeave }: Enhanc
   const [newMessage, setNewMessage] = useState('');
   const [inviteLink, setInviteLink] = useState('');
   const [reactions, setReactions] = useState<Array<{ id: string; emoji: string; timestamp: number }>>([]);
+  
+  // Floating emoji reactions
+  const { reactions: floatingReactions, addReaction } = useFloatingEmojiReactions();
   
   // Hydrate chat cache on mount
   useEffect(() => {
@@ -875,6 +880,9 @@ const monitorAudioLevel = () => {
         </div>
       </div>
 
+      {/* Floating Emoji Reactions */}
+      <FloatingEmojiReactions reactions={floatingReactions} />
+      
       {/* Animated Reactions Overlay */}
       <ReactionOverlay reactions={reactions} />
     </div>
