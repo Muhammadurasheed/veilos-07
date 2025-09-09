@@ -151,9 +151,17 @@ export const EnhancedRealTimeChat: React.FC<EnhancedRealTimeChatProps> = ({
     setNewMessage(value);
     setCursorPosition(position);
 
-    // Auto-resize textarea
+    // Auto-resize textarea with proper overflow handling
     e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+    const newHeight = Math.min(e.target.scrollHeight, 120);
+    e.target.style.height = newHeight + 'px';
+    
+    // Handle overflow for long content
+    if (e.target.scrollHeight > 120) {
+      e.target.style.overflowY = 'auto';
+    } else {
+      e.target.style.overflowY = 'hidden';
+    }
 
     // Handle typing indicator
     if (socket && !isTyping) {

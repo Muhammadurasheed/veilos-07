@@ -358,4 +358,85 @@ router.delete('/:sessionId/breakout-rooms/:roomId', authMiddleware, async (req, 
   }
 });
 
+// Auto-assign participants to breakout rooms
+router.post('/:sessionId/breakout-rooms/auto-assign', authMiddleware, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const session = await LiveSanctuarySession.findOne({ id: sessionId });
+    if (!session) {
+      return res.error('Session not found', 404);
+    }
+
+    // Only host can auto-assign
+    if (session.hostId !== req.user.id) {
+      return res.error('Only the host can auto-assign participants', 403);
+    }
+
+    const breakoutRooms = await BreakoutRoom.find({ 
+      sessionId: session.id,
+      status: 'active'
+    });
+
+    if (breakoutRooms.length === 0) {
+      return res.error('No active breakout rooms found', 400);
+    }
+
+    // Get participants not in breakout rooms
+    const unassignedParticipants = session.participants.filter(p => {
+      return !breakoutRooms.some(room => 
+        room.participants.some(rp => rp.id === p.id)
+      );
+    });
+
+    if (unassignedParticipants.length === 0) {
+      return res.success({ message: 'All participants are already assigned' }, 'All participants assigned');
+    }
+
+    // Distribute participants evenly
+    let roomIndex = 0;
+    for (const participant of unassignedParticipants) {
+      const targetRoom = breakoutRooms[roomIndex % breakoutRooms.length];
+      
+      if (targetRoom.participants.length < targetRoom.maxParticipants) {
+        const roomParticipant = {
+          id: participant.id,
+          alias: participant.alias,
+          avatarIndex: participant.avatarIndex,
+          joinedAt: new Date(),
+          isMuted: true,
+          connectionStatus: 'connected'
+        };
+
+        targetRoom.participants.push(roomParticipant);
+        await targetRoom.save();
+
+        // Notify participant
+        await redisService.publishEvent(`user:${participant.id}`, 'auto_assigned_to_breakout', {
+          roomId: targetRoom.id,
+          roomName: targetRoom.name,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      roomIndex++;
+    }
+
+    console.log('🔄 Auto-assigned participants to breakout rooms:', {
+      sessionId,
+      assignedCount: unassignedParticipants.length,
+      totalRooms: breakoutRooms.length
+    });
+
+    res.success({
+      assignedCount: unassignedParticipants.length,
+      totalRooms: breakoutRooms.length
+    }, 'Participants auto-assigned successfully');
+
+  } catch (error) {
+    console.error('❌ Auto-assign breakout rooms error:', error);
+    res.error('Failed to auto-assign participants: ' + error.message, 500);
+  }
+});
+
 module.exports = router;

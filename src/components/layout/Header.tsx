@@ -81,15 +81,6 @@ const Header = () => {
     >
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full" 
-            onClick={toggleSidebar}
-          >
-            <Menu className="h-5 w-5" />
-            <span className="sr-only">Toggle sidebar</span>
-          </Button>
           <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center">
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Veilo</span>
           </Link>

@@ -10,38 +10,37 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   Users, 
   Plus, 
-  Settings, 
   ArrowRight, 
-  Volume2, 
-  VolumeX,
-  MoreHorizontal,
   X,
   Shuffle,
   Clock,
-  Target
+  Target,
+  Settings2
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useSocket } from '@/hooks/useSocket';
 
 interface BreakoutRoom {
   id: string;
   name: string;
-  topic?: string;
-  facilitatorId: string;
-  facilitatorAlias: string;
+  createdBy: string;
+  creatorAlias: string;
+  maxParticipants: number;
+  currentParticipants: number;
   participants: Array<{
     id: string;
     alias: string;
     avatarIndex: number;
-    isMuted: boolean;
-    isConnected: boolean;
+    joinedAt: string;
   }>;
-  maxParticipants: number;
-  status: 'active' | 'waiting' | 'ended';
-  duration?: number; // in minutes
-  createdAt: string;
+  status: 'active' | 'closed';
   agoraChannelName: string;
+  agoraToken: string;
+  createdAt: string;
+  canJoin: boolean;
 }
 
-interface EnhancedBreakoutRoomManagerProps {
+interface WorkingBreakoutManagerProps {
   sessionId: string;
   currentUser: {
     id: string;
@@ -56,11 +55,11 @@ interface EnhancedBreakoutRoomManagerProps {
     isHost: boolean;
     isModerator: boolean;
   }>;
-  onJoinRoom?: (roomId: string) => void;
+  onJoinRoom?: (roomData: any) => void;
   onLeaveRoom?: (roomId: string) => void;
 }
 
-export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerProps> = ({
+export const WorkingBreakoutManager: React.FC<WorkingBreakoutManagerProps> = ({
   sessionId,
   currentUser,
   participants,
@@ -68,37 +67,88 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
   onLeaveRoom
 }) => {
   const { toast } = useToast();
+  const { socket } = useSocket();
   const [breakoutRooms, setBreakoutRooms] = useState<BreakoutRoom[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isManageDialogOpen, setIsManageDialogOpen] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
-  const [newRoomTopic, setNewRoomTopic] = useState('');
-  const [newRoomMaxParticipants, setNewRoomMaxParticipants] = useState(6);
-  const [newRoomDuration, setNewRoomDuration] = useState(15);
-  const [selectedFacilitator, setSelectedFacilitator] = useState<string>('');
+  const [newRoomMaxParticipants, setNewRoomMaxParticipants] = useState(10);
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [currentUserRoom, setCurrentUserRoom] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Fetch existing breakout rooms
   useEffect(() => {
     fetchBreakoutRooms();
   }, [sessionId]);
 
+  // Listen for real-time breakout room updates
+  useEffect(() => {
+    if (!socket || !sessionId) return;
+
+    const handleBreakoutRoomCreated = (data: any) => {
+      setBreakoutRooms(prev => [...prev, data.room]);
+    };
+
+    const handleBreakoutRoomJoined = (data: any) => {
+      fetchBreakoutRooms(); // Refresh room data
+    };
+
+    const handleBreakoutRoomLeft = (data: any) => {
+      fetchBreakoutRooms(); // Refresh room data
+    };
+
+    const handleBreakoutRoomClosed = (data: any) => {
+      setBreakoutRooms(prev => prev.filter(room => room.id !== data.roomId));
+      if (currentUserRoom === data.roomId) {
+        setCurrentUserRoom(null);
+      }
+    };
+
+    socket.on('breakout_room_created', handleBreakoutRoomCreated);
+    socket.on('breakout_room_joined', handleBreakoutRoomJoined);
+    socket.on('breakout_room_left', handleBreakoutRoomLeft);
+    socket.on('breakout_room_closed', handleBreakoutRoomClosed);
+
+    return () => {
+      socket.off('breakout_room_created', handleBreakoutRoomCreated);
+      socket.off('breakout_room_joined', handleBreakoutRoomJoined);
+      socket.off('breakout_room_left', handleBreakoutRoomLeft);
+      socket.off('breakout_room_closed', handleBreakoutRoomClosed);
+    };
+  }, [socket, sessionId, currentUserRoom]);
+
+  const getAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
+  });
+
   const fetchBreakoutRooms = async () => {
     try {
+      setIsLoading(true);
       const response = await fetch(`/api/flagship-sanctuary/${sessionId}/breakout-rooms`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
-        }
+        headers: getAuthHeaders()
       });
       
       if (response.ok) {
         const data = await response.json();
-        setBreakoutRooms(data.data?.rooms || data.rooms || []);
+        const rooms = data.data?.rooms || data.rooms || [];
+        setBreakoutRooms(rooms);
+        
+        // Check if current user is in any room
+        const userRoom = rooms.find((room: BreakoutRoom) => 
+          room.participants.some(p => p.id === currentUser.id)
+        );
+        if (userRoom) {
+          setCurrentUserRoom(userRoom.id);
+        }
       } else {
         console.error('Failed to fetch breakout rooms:', response.status);
       }
     } catch (error) {
       console.error('Failed to fetch breakout rooms:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -115,16 +165,10 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
     try {
       const response = await fetch(`/api/flagship-sanctuary/${sessionId}/breakout-rooms`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
-          name: newRoomName,
-          topic: newRoomTopic,
-          maxParticipants: newRoomMaxParticipants,
-          duration: newRoomDuration,
-          facilitatorId: selectedFacilitator || currentUser.id
+          name: newRoomName.trim(),
+          maxParticipants: newRoomMaxParticipants
         })
       });
 
@@ -146,7 +190,7 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
     } catch (error) {
       toast({
         title: "Creation Failed",
-        description: "Could not create breakout room",
+        description: error instanceof Error ? error.message : "Could not create breakout room",
         variant: "destructive"
       });
     }
@@ -154,26 +198,22 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
 
   const resetCreateForm = () => {
     setNewRoomName('');
-    setNewRoomTopic('');
-    setNewRoomMaxParticipants(6);
-    setNewRoomDuration(15);
-    setSelectedFacilitator('');
+    setNewRoomMaxParticipants(10);
   };
 
   const joinBreakoutRoom = async (roomId: string) => {
     try {
       const response = await fetch(`/api/flagship-sanctuary/${sessionId}/breakout-rooms/${roomId}/join`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
         const data = await response.json();
+        const roomData = data.data?.room || data.room;
+        
         setCurrentUserRoom(roomId);
-        onJoinRoom?.(roomId);
+        onJoinRoom?.(roomData);
         
         toast({
           title: "Joined Room",
@@ -182,11 +222,14 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
         
         // Update room participant list
         await fetchBreakoutRooms();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to join room');
       }
     } catch (error) {
       toast({
         title: "Join Failed",
-        description: "Could not join breakout room",
+        description: error instanceof Error ? error.message : "Could not join breakout room",
         variant: "destructive"
       });
     }
@@ -196,10 +239,7 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
     try {
       const response = await fetch(`/api/flagship-sanctuary/${sessionId}/breakout-rooms/${roomId}/leave`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
@@ -212,11 +252,14 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
         });
         
         await fetchBreakoutRooms();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to leave room');
       }
     } catch (error) {
       toast({
         title: "Leave Failed",
-        description: "Could not leave breakout room",
+        description: error instanceof Error ? error.message : "Could not leave breakout room",
         variant: "destructive"
       });
     }
@@ -237,10 +280,7 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
     try {
       const response = await fetch(`/api/flagship-sanctuary/${sessionId}/breakout-rooms/auto-assign`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
@@ -249,11 +289,14 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
           title: "Auto-Assignment Complete",
           description: "Participants have been distributed to rooms"
         });
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to auto-assign');
       }
     } catch (error) {
       toast({
         title: "Auto-Assignment Failed",
-        description: "Could not distribute participants",
+        description: error instanceof Error ? error.message : "Could not distribute participants",
         variant: "destructive"
       });
     } finally {
@@ -265,9 +308,7 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
     try {
       const response = await fetch(`/api/flagship-sanctuary/${sessionId}/breakout-rooms/${roomId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token')}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
@@ -277,20 +318,23 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
         }
         
         toast({
-          title: "Room Deleted",
-          description: "Breakout room has been removed"
+          title: "Room Closed",
+          description: "Breakout room has been closed"
         });
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to close room');
       }
     } catch (error) {
       toast({
-        title: "Delete Failed",
-        description: "Could not delete breakout room",
+        title: "Close Failed",
+        description: error instanceof Error ? error.message : "Could not close breakout room",
         variant: "destructive"
       });
     }
   };
 
-  const availableFacilitators = participants.filter(p => !p.isHost);
+  const canManageRooms = currentUser.isHost || currentUser.isModerator;
 
   return (
     <Card className="w-full">
@@ -302,7 +346,7 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
             <Badge variant="secondary">{breakoutRooms.length}</Badge>
           </div>
           
-          {(currentUser.isHost || currentUser.isModerator) && (
+          {canManageRooms && (
             <div className="flex items-center space-x-2">
               <Button
                 variant="outline"
@@ -311,104 +355,104 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
                 disabled={isAutoAssigning || breakoutRooms.length === 0}
               >
                 <Shuffle className="h-4 w-4 mr-1" />
-                Auto-Assign
+                {isAutoAssigning ? 'Assigning...' : 'Auto-Assign'}
               </Button>
               
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <Dialog open={isManageDialogOpen} onOpenChange={setIsManageDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Create Room
+                  <Button variant="outline" size="sm">
+                    <Settings2 className="h-4 w-4 mr-1" />
+                    Manage
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-[600px]">
                   <DialogHeader>
-                    <DialogTitle>Create Breakout Room</DialogTitle>
+                    <DialogTitle>Manage Breakout Rooms</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Room Name</label>
-                      <Input
-                        value={newRoomName}
-                        onChange={(e) => setNewRoomName(e.target.value)}
-                        placeholder="Enter room name..."
-                      />
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-medium">Active Rooms</h4>
+                      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button size="sm">
+                            <Plus className="h-4 w-4 mr-1" />
+                            Create Room
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Create Breakout Room</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-2">Room Name</label>
+                              <Input
+                                value={newRoomName}
+                                onChange={(e) => setNewRoomName(e.target.value)}
+                                placeholder="Enter room name..."
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium mb-2">Max Participants</label>
+                              <Select
+                                value={newRoomMaxParticipants.toString()}
+                                onValueChange={(value) => setNewRoomMaxParticipants(parseInt(value))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[4, 6, 8, 10, 12, 15, 20].map(num => (
+                                    <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div className="flex justify-end space-x-2 pt-4">
+                              <Button
+                                variant="outline"
+                                onClick={() => setIsCreateDialogOpen(false)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button onClick={createBreakoutRoom}>
+                                Create Room
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Topic (Optional)</label>
-                      <Input
-                        value={newRoomTopic}
-                        onChange={(e) => setNewRoomTopic(e.target.value)}
-                        placeholder="What will be discussed..."
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Max Participants</label>
-                        <Select
-                          value={newRoomMaxParticipants.toString()}
-                          onValueChange={(value) => setNewRoomMaxParticipants(parseInt(value))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[2, 3, 4, 5, 6, 8, 10, 12].map(num => (
-                              <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Duration (min)</label>
-                        <Select
-                          value={newRoomDuration.toString()}
-                          onValueChange={(value) => setNewRoomDuration(parseInt(value))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[5, 10, 15, 20, 30, 45, 60].map(num => (
-                              <SelectItem key={num} value={num.toString()}>{num} min</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Facilitator</label>
-                      <Select value={selectedFacilitator} onValueChange={setSelectedFacilitator}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose facilitator..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={currentUser.id}>
-                            {currentUser.alias} (You)
-                          </SelectItem>
-                          {availableFacilitators.map(participant => (
-                            <SelectItem key={participant.id} value={participant.id}>
-                              {participant.alias}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="flex justify-end space-x-2 pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsCreateDialogOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button onClick={createBreakoutRoom}>
-                        Create Room
-                      </Button>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {breakoutRooms.map((room) => (
+                        <div key={room.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-medium">{room.name}</span>
+                              <Badge variant={room.status === 'active' ? 'default' : 'secondary'} className="text-xs">
+                                {room.status}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {room.currentParticipants}/{room.maxParticipants} participants
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteBreakoutRoom(room.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      {breakoutRooms.length === 0 && (
+                        <p className="text-center text-muted-foreground py-4">No breakout rooms created yet</p>
+                      )}
                     </div>
                   </div>
                 </DialogContent>
@@ -419,16 +463,24 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
       </CardHeader>
       
       <CardContent>
-        {breakoutRooms.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p>Loading breakout rooms...</p>
+          </div>
+        ) : breakoutRooms.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No breakout rooms created yet</p>
-            <p className="text-sm">Create rooms for focused discussions</p>
+            <p>No breakout rooms available</p>
+            <p className="text-sm">Host can create rooms for focused discussions</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {breakoutRooms.map((room) => (
-              <Card key={room.id} className="relative">
+              <Card key={room.id} className={cn(
+                "relative transition-all duration-200",
+                currentUserRoom === room.id && "ring-2 ring-primary bg-primary/5"
+              )}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -442,24 +494,20 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
                             >
                               {room.status}
                             </Badge>
+                            {currentUserRoom === room.id && (
+                              <Badge variant="outline" className="text-xs">
+                                Current
+                              </Badge>
+                            )}
                           </h4>
-                          {room.topic && (
-                            <p className="text-sm text-muted-foreground mt-1">{room.topic}</p>
-                          )}
                           <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
                             <span className="flex items-center space-x-1">
                               <Users className="h-3 w-3" />
-                              <span>{room.participants.length}/{room.maxParticipants}</span>
+                              <span>{room.currentParticipants}/{room.maxParticipants}</span>
                             </span>
-                            {room.duration && (
-                              <span className="flex items-center space-x-1">
-                                <Clock className="h-3 w-3" />
-                                <span>{room.duration}min</span>
-                              </span>
-                            )}
                             <span className="flex items-center space-x-1">
                               <Target className="h-3 w-3" />
-                              <span>Facilitator: {room.facilitatorAlias}</span>
+                              <span>Created by: {room.creatorAlias}</span>
                             </span>
                           </div>
                         </div>
@@ -496,20 +544,10 @@ export const EnhancedBreakoutRoomManager: React.FC<EnhancedBreakoutRoomManagerPr
                           variant="outline"
                           size="sm"
                           onClick={() => joinBreakoutRoom(room.id)}
-                          disabled={room.participants.length >= room.maxParticipants}
+                          disabled={!room.canJoin || !!currentUserRoom}
                         >
                           <ArrowRight className="h-4 w-4 mr-1" />
                           Join
-                        </Button>
-                      )}
-                      
-                      {(currentUser.isHost || currentUser.isModerator) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteBreakoutRoom(room.id)}
-                        >
-                          <X className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
