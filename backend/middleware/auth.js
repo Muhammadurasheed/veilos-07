@@ -5,8 +5,13 @@ const User = require('../models/User');
 // Middleware to verify user token
 exports.authMiddleware = async (req, res, next) => {
   try {
-    // Extract token from header
-    const token = req.header('x-auth-token');
+    // Extract token from header - support both formats
+    let token = req.header('x-auth-token') || req.header('Authorization');
+    
+    // Handle Bearer token format
+    if (token && token.startsWith('Bearer ')) {
+      token = token.slice(7);
+    }
     
     if (!token) {
       return res.status(401).json({

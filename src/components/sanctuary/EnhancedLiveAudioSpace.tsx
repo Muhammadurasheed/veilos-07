@@ -12,6 +12,7 @@ import { ReactionOverlay } from './AnimatedReaction';
 import { ResizableChatPanel } from './ResizableChatPanel';
 import ComprehensiveAudioSettings from './ComprehensiveAudioSettings';
 import { FloatingEmojiReactions, useFloatingEmojiReactions } from './FloatingEmojiReactions';
+import { FloatingReactionOverlay } from './FloatingReactionOverlay';
 import { EnhancedBreakoutRoomManager } from './EnhancedBreakoutRoomManager';
 import { 
   Mic, 
@@ -165,10 +166,18 @@ useEffect(() => {
       onEvent('participant_joined', (data) => {
         console.log('Participant joined:', data);
         setParticipants(prev => {
-          // Prevent duplicate participants
+          // Prevent duplicate participants and ensure sticky behavior
           const exists = prev.find(p => p.id === data.participant.id);
-          if (exists) return prev;
-          return [...prev, data.participant];
+          if (exists) {
+            // Update existing participant to ensure they stay visible
+            return prev.map(p => 
+              p.id === data.participant.id 
+                ? { ...p, connectionStatus: 'connected' as const, joinedAt: data.participant.joinedAt }
+                : p
+            );
+          }
+          // Add new participant with sticky flag
+          return [...prev, { ...data.participant, connectionStatus: 'connected' as const }];
         });
         addSystemMessage(`${data.participant.alias} joined the sanctuary`);
       }),
@@ -313,14 +322,17 @@ useEffect(() => {
             emoji: data.emoji,
             timestamp: Date.now()
           }];
-          // Limit to 10 active reactions for better visual experience
-          return newReactions.slice(-10);
+          // Limit to 15 active reactions for better visual experience  
+          return newReactions.slice(-15);
         });
 
-        // Remove reaction after 3 seconds with staggered removal
+        // Also add to floating emoji system
+        addReaction(data.emoji);
+
+        // Remove reaction after 4 seconds with staggered removal
         setTimeout(() => {
           setReactions(prev => prev.filter(r => r.id !== reactionId));
-        }, 2500 + Math.random() * 1000); // Stagger removal between 2.5-3.5s
+        }, 3500 + Math.random() * 1000); // Stagger removal between 3.5-4.5s
 
         // Add to chat messages
         const reactionMessage: ChatMessage = {
@@ -950,6 +962,9 @@ const monitorAudioLevel = () => {
 
       {/* Floating Emoji Reactions */}
       <FloatingEmojiReactions reactions={floatingReactions} />
+      
+      {/* Enhanced Floating Reactions Overlay */}
+      <FloatingReactionOverlay reactions={reactions} />
       
       {/* Animated Reactions Overlay */}
       <ReactionOverlay reactions={reactions} />
