@@ -319,7 +319,7 @@ export const EnhancedRealTimeChat: React.FC<EnhancedRealTimeChatProps> = ({
       );
     }
 
-    if (message.type === 'media' && message.attachment) {
+    if (message.attachment) {
       return (
         <div className="flex items-start space-x-2 hover:bg-muted/30 p-2 rounded group">
           <Avatar className="h-6 w-6 flex-shrink-0">
