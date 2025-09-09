@@ -27,6 +27,40 @@ import { AnimatedReactionSystem } from './AnimatedReactionSystem';
 import { WorkingBreakoutRoomManager } from './WorkingBreakoutRoomManager';
 import { ModernScrollbar } from '../ui/modern-scrollbar';
 
+// Enhanced auto-resizing textarea component
+const AutoResizeTextarea = ({ value, onChange, placeholder, disabled, onKeyDown, className, ...props }: any) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      // Reset height to auto to get correct scrollHeight
+      textarea.style.height = 'auto';
+      // Set height to scrollHeight to fit content
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`; // Max 120px height
+    }
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={onChange}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={`${className} resize-none overflow-hidden`}
+      style={{
+        minHeight: '40px',
+        maxHeight: '120px',
+        lineHeight: '1.5'
+      }}
+      rows={1}
+      {...props}
+    />
+  );
+};
+
 // Create a mock function for generating a random avatar color
 const getAvatarColor = (alias: string): string => {
   const colors = [
@@ -547,13 +581,17 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
                 Create and manage breakout rooms for smaller group discussions
               </DialogDescription>
             </DialogHeader>
-            <FunctionalBreakoutManager 
+            <WorkingBreakoutRoomManager 
               sessionId={session.id}
               isHost={isHost}
+              authToken={localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token') || ''}
               onJoinRoom={(roomId) => {
                 console.log('Joining room:', roomId);
                 setShowBreakoutRooms(false);
-                // TODO: Navigate to breakout room
+                toast({
+                  title: "Breakout Room",
+                  description: "Joining breakout room..."
+                });
               }}
             />
           </DialogContent>
@@ -717,7 +755,8 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
         <CardContent className="p-0">
           <div className="flex h-[60vh] md:h-[70vh]">
             {/* Participants sidebar */}
-            <div className="w-16 md:w-48 border-r bg-gray-50 dark:bg-gray-900 overflow-y-auto p-2">
+            <ModernScrollbar>
+              <div className="w-16 md:w-48 border-r bg-gray-50 dark:bg-gray-900 p-2">
               <div className="sticky top-0 bg-gray-50 dark:bg-gray-900 py-2 mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 hidden md:block">Participants</h3>
               </div>
@@ -775,12 +814,13 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
                   </div>
                 ))}
               </div>
-            </div>
+            </ModernScrollbar>
 
             {/* Messages area */}
             <div className="flex-1 flex flex-col max-h-full">
-              {/* Messages container */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Messages container */}
+            <ModernScrollbar>
+              <div className="flex-1 p-4 space-y-4">
                 {messages.map(message => (
                   <div 
                     key={message.id}

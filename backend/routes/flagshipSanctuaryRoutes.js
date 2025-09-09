@@ -11,6 +11,212 @@ const aiModerationService = require('../services/aiModerationService');
 
 // 🎯 FLAGSHIP ROUTES - Anonymous Live Audio Sanctuary
 
+// ======= BREAKOUT ROOM ROUTES =======
+
+// Create breakout room
+router.post('/:sessionId/breakout-rooms', authMiddleware, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { name, topic, description, maxParticipants = 8, isPrivate = false, requiresApproval = false } = req.body;
+
+    console.log('🔧 Creating breakout room for session:', sessionId);
+
+    // Verify parent session exists and user has permission
+    const parentSession = await LiveSanctuarySession.findOne({
+      id: sessionId,
+      isActive: true
+    });
+
+    if (!parentSession) {
+      return res.status(404).json({ success: false, error: 'Parent session not found' });
+    }
+
+    // Check if user is host
+    if (parentSession.hostId !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Only hosts can create breakout rooms' });
+    }
+
+    const roomId = `breakout-${nanoid(8)}`;
+    const channelName = `breakout_${roomId}`;
+    
+    // Generate Agora token for breakout room
+    let agoraToken;
+    try {
+      agoraToken = generateRtcToken(channelName, 0, 'subscriber', 3600);
+    } catch (error) {
+      console.warn('⚠️ Agora token generation failed for breakout room:', error.message);
+      agoraToken = `temp_breakout_token_${nanoid(16)}`;
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1); // 1 hour default
+
+    // Store breakout room in Redis for now (could be moved to MongoDB later)
+    const breakoutRoomData = {
+      id: roomId,
+      name: name.trim(),
+      topic: topic?.trim(),
+      description: description?.trim(),
+      parentSessionId: sessionId,
+      createdBy: req.user.id,
+      creatorAlias: req.user.alias || `User ${req.user.id}`,
+      facilitatorId: req.user.id,
+      agoraChannelName: channelName,
+      agoraToken,
+      maxParticipants,
+      isPrivate,
+      requiresApproval,
+      participants: [],
+      currentParticipants: 0,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString()
+    };
+
+    await redisService.setBreakoutRoom(roomId, breakoutRoomData, 3600);
+
+    console.log('✅ Breakout room created:', roomId);
+
+    res.json({
+      success: true,
+      data: {
+        room: breakoutRoomData
+      }
+    });
+  } catch (error) {
+    console.error('❌ Breakout room creation error:', error);
+    res.status(500).json({ success: false, error: 'Failed to create breakout room' });
+  }
+});
+
+// Get breakout rooms for session
+router.get('/:sessionId/breakout-rooms', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    console.log('📋 Fetching breakout rooms for session:', sessionId);
+
+    // Get all breakout rooms for this session from Redis
+    const rooms = await redisService.getBreakoutRooms(sessionId);
+    
+    // Filter active rooms and add canJoin property
+    const activeRooms = rooms.filter(room => room.isActive).map(room => ({
+      ...room,
+      canJoin: room.currentParticipants < room.maxParticipants
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        rooms: activeRooms
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get breakout rooms error:', error);
+    res.status(500).json({ success: false, error: 'Failed to retrieve breakout rooms' });
+  }
+});
+
+// Join breakout room
+router.post('/:sessionId/breakout-rooms/:roomId/join', authMiddleware, async (req, res) => {
+  try {
+    const { sessionId, roomId } = req.params;
+    const { alias } = req.body;
+
+    console.log('🔗 Joining breakout room:', roomId);
+
+    const room = await redisService.getBreakoutRoom(roomId);
+    
+    if (!room || !room.isActive) {
+      return res.status(404).json({ success: false, error: 'Breakout room not found or inactive' });
+    }
+
+    // Check capacity
+    if (room.currentParticipants >= room.maxParticipants) {
+      return res.status(400).json({ success: false, error: 'Breakout room is full' });
+    }
+
+    // Check if already joined
+    const existingParticipant = room.participants.find(p => p.id === req.user.id);
+    if (existingParticipant && !existingParticipant.leftAt) {
+      return res.json({
+        success: true,
+        data: {
+          room: room,
+          role: req.user.id === room.facilitatorId ? 'facilitator' : 'participant'
+        }
+      });
+    }
+
+    // Add or re-add participant
+    const participantData = {
+      id: req.user.id,
+      alias: alias || req.user.alias || `User ${req.user.id}`,
+      avatarIndex: Math.floor(Math.random() * 8),
+      joinedAt: new Date().toISOString(),
+      leftAt: null,
+      role: req.user.id === room.facilitatorId ? 'facilitator' : 'participant'
+    };
+
+    if (existingParticipant) {
+      // Re-joining
+      existingParticipant.leftAt = null;
+      existingParticipant.joinedAt = new Date().toISOString();
+    } else {
+      // New participant
+      room.participants.push(participantData);
+    }
+
+    room.currentParticipants = room.participants.filter(p => !p.leftAt).length;
+    
+    // Update room in Redis
+    await redisService.setBreakoutRoom(roomId, room, 3600);
+
+    res.json({
+      success: true,
+      data: {
+        room: room,
+        role: participantData.role
+      }
+    });
+  } catch (error) {
+    console.error('❌ Join breakout room error:', error);
+    res.status(500).json({ success: false, error: 'Failed to join breakout room' });
+  }
+});
+
+// Delete/close breakout room
+router.delete('/:sessionId/breakout-rooms/:roomId', authMiddleware, async (req, res) => {
+  try {
+    const { sessionId, roomId } = req.params;
+
+    console.log('🗑️ Closing breakout room:', roomId);
+
+    const room = await redisService.getBreakoutRoom(roomId);
+    if (!room) {
+      return res.status(404).json({ success: false, error: 'Breakout room not found' });
+    }
+
+    // Check permission
+    if (room.facilitatorId !== req.user.id && room.createdBy !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Only facilitator can close breakout room' });
+    }
+
+    // Mark as inactive
+    room.isActive = false;
+    room.endedAt = new Date().toISOString();
+    
+    await redisService.setBreakoutRoom(roomId, room, 600); // Keep for 10 minutes for cleanup
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Close breakout room error:', error);
+    res.status(500).json({ success: false, error: 'Failed to close breakout room' });
+  }
+});
+
+// ======= END BREAKOUT ROOM ROUTES =======
+
 // Helper function to convert scheduled session to live
 async function convertScheduledToLive(sessionId, userId, res = null, internalCall = false) {
   try {
