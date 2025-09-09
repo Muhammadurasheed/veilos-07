@@ -584,7 +584,7 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
             <WorkingBreakoutRoomManager 
               sessionId={session.id}
               isHost={isHost}
-              authToken={localStorage.getItem('auth_token') || localStorage.getItem('veilo-auth-token') || localStorage.getItem('token') || ''}
+              authToken={localStorage.getItem('veilo-auth-token') || localStorage.getItem('token') || localStorage.getItem('auth_token') || ''}
               onJoinRoom={(roomId) => {
                 console.log('Joining room:', roomId);
                 setShowBreakoutRooms(false);

@@ -12,7 +12,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { ResizableSidebar } from '@/components/ui/resizable-sidebar';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Home, 
@@ -58,13 +57,7 @@ export const EnhancedSidebar = ({ currentUser }: EnhancedSidebarProps) => {
   const isAdmin = currentUser?.role === 'admin';
 
   return (
-    <ResizableSidebar
-      defaultWidth={280}
-      minWidth={200}
-      maxWidth={400}
-      className="border-r"
-    >
-      <Sidebar className="w-full h-full">
+    <Sidebar className="w-full h-full">
         {/* Sidebar header with trigger */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between">
@@ -123,7 +116,6 @@ export const EnhancedSidebar = ({ currentUser }: EnhancedSidebarProps) => {
           )}
         </SidebarContent>
       </Sidebar>
-    </ResizableSidebar>
   );
 };
 

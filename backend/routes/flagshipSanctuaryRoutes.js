@@ -8,6 +8,7 @@ const { generateRtcToken } = require('../utils/agoraTokenGenerator');
 const redisService = require('../services/redisService');
 const elevenLabsService = require('../services/elevenLabsService');
 const aiModerationService = require('../services/aiModerationService');
+const responseHandler = require('../middleware/responseHandler');
 
 // 🎯 FLAGSHIP ROUTES - Anonymous Live Audio Sanctuary
 
@@ -1741,10 +1742,183 @@ router.post('/:sessionId/start', authMiddleware, async (req, res) => {
 // Include voice preview routes
 router.use('/', require('./voicePreviewRoutes'));
 
-// Include recording routes
+// Include recording routes  
 router.use('/', require('./recordingRoutes'));
 
-// Include breakout room routes
-router.use('/', require('./breakoutRoomRoutes'));
+// ============================
+// BREAKOUT ROOM ROUTES
+// ============================
+
+// Get breakout rooms for a session
+router.get('/:sessionId/breakout-rooms', authMiddleware, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    const session = await LiveSanctuarySession.findOne({ 
+      id: sessionId,
+      isActive: true,
+      expiresAt: { $gt: new Date() }
+    });
+    
+    if (!session) {
+      return responseHandler.error(res, 'Session not found or expired', 404);
+    }
+
+    // Get active breakout rooms from Redis
+    const rooms = await redisService.getBreakoutRooms(sessionId);
+    
+    responseHandler.success(res, { 
+      rooms: rooms.map(room => ({
+        ...room,
+        canJoin: room.currentParticipants < room.maxParticipants
+      }))
+    });
+  } catch (error) {
+    console.error('Get breakout rooms error:', error);
+    responseHandler.error(res, 'Failed to fetch breakout rooms', 500);
+  }
+});
+
+// Create breakout room
+router.post('/:sessionId/breakout-rooms', authMiddleware, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { name, topic, description, maxParticipants = 8, isPrivate = false, requiresApproval = false } = req.body;
+    
+    // Validate session exists and user is host
+    const session = await LiveSanctuarySession.findOne({ 
+      id: sessionId,
+      isActive: true,
+      expiresAt: { $gt: new Date() }
+    });
+    
+    if (!session) {
+      return responseHandler.error(res, 'Session not found or expired', 404);
+    }
+    
+    if (session.hostId !== req.user.id) {
+      return responseHandler.error(res, 'Only hosts can create breakout rooms', 403);
+    }
+
+    const roomId = nanoid(12);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    
+    const breakoutRoom = {
+      id: roomId,
+      name: name.trim(),
+      topic: topic?.trim(),
+      description: description?.trim(),
+      parentSessionId: sessionId,
+      createdBy: req.user.id,
+      creatorAlias: session.hostAlias,
+      facilitatorId: req.user.id,
+      agoraChannelName: `breakout-${roomId}`,
+      agoraToken: 'temp-token', // TODO: Generate real Agora token
+      maxParticipants,
+      isPrivate,
+      requiresApproval,
+      participants: [],
+      currentParticipants: 0,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString()
+    };
+
+    // Store in Redis with TTL
+    await redisService.setBreakoutRoom(roomId, breakoutRoom, 3600);
+    
+    responseHandler.success(res, { 
+      roomId,
+      room: breakoutRoom
+    });
+  } catch (error) {
+    console.error('Create breakout room error:', error);
+    responseHandler.error(res, 'Failed to create breakout room', 500);
+  }
+});
+
+// Join breakout room
+router.post('/:sessionId/breakout-rooms/:roomId/join', authMiddleware, async (req, res) => {
+  try {
+    const { sessionId, roomId } = req.params;
+    const { alias } = req.body;
+    
+    // Get room from Redis
+    const room = await redisService.getBreakoutRoom(roomId);
+    if (!room || !room.isActive) {
+      return responseHandler.error(res, 'Breakout room not found or inactive', 404);
+    }
+    
+    // Check capacity
+    if (room.currentParticipants >= room.maxParticipants) {
+      return responseHandler.error(res, 'Breakout room is full', 400);
+    }
+    
+    // Check if already in room
+    const existingParticipant = room.participants.find(p => p.id === req.user.id && !p.leftAt);
+    if (existingParticipant) {
+      return responseHandler.success(res, { 
+        room,
+        role: existingParticipant.role 
+      });
+    }
+    
+    // Add participant
+    const participant = {
+      id: req.user.id,
+      alias: alias || `User ${req.user.id}`,
+      avatarIndex: Math.floor(Math.random() * 8),
+      joinedAt: new Date().toISOString(),
+      role: req.user.id === room.facilitatorId ? 'facilitator' : 'participant'
+    };
+    
+    room.participants.push(participant);
+    room.currentParticipants = room.participants.filter(p => !p.leftAt).length;
+    
+    // Update in Redis
+    await redisService.setBreakoutRoom(roomId, room, 3600);
+    
+    responseHandler.success(res, { 
+      room,
+      participant,
+      role: participant.role
+    });
+  } catch (error) {
+    console.error('Join breakout room error:', error);
+    responseHandler.error(res, 'Failed to join breakout room', 500);
+  }
+});
+
+// Leave/Delete breakout room
+router.delete('/:sessionId/breakout-rooms/:roomId', authMiddleware, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    const room = await redisService.getBreakoutRoom(roomId);
+    if (!room) {
+      return responseHandler.error(res, 'Breakout room not found', 404);
+    }
+    
+    // Check permission (facilitator or creator)
+    if (room.facilitatorId !== req.user.id && room.createdBy !== req.user.id) {
+      return responseHandler.error(res, 'Only facilitator can close breakout room', 403);
+    }
+    
+    // Mark as inactive and set end time
+    room.isActive = false;
+    room.endedAt = new Date().toISOString();
+    
+    // Update in Redis (keep for logging) or delete
+    await redisService.deleteBreakoutRoom(roomId);
+    
+    responseHandler.success(res, { message: 'Breakout room closed successfully' });
+  } catch (error) {
+    console.error('Close breakout room error:', error);
+    responseHandler.error(res, 'Failed to close breakout room', 500);
+  }
+});
+
+// Include legacy breakout room routes if they exist
+// router.use('/', require('./breakoutRoomRoutes'));
 
 module.exports = router;

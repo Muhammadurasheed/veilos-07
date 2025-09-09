@@ -276,6 +276,90 @@ class RedisService {
       return {};
     }
   }
+
+  // ============================
+  // BREAKOUT ROOM METHODS
+  // ============================
+  
+  async setBreakoutRoom(roomId, roomData, ttl) {
+    try {
+      if (!this.isConnected) return false;
+      
+      const key = `breakout:${roomId}`;
+      await this.client.setEx(key, ttl, JSON.stringify(roomData));
+      
+      // Index by session
+      const sessionKey = `session:${roomData.parentSessionId}:breakouts`;
+      await this.client.sAdd(sessionKey, roomId);
+      await this.client.expire(sessionKey, ttl);
+      
+      console.log(`💾 Breakout room saved: ${roomId}`);
+      return true;
+    } catch (error) {
+      console.error('❌ Redis setBreakoutRoom error:', error);
+      return false;
+    }
+  }
+
+  async getBreakoutRoom(roomId) {
+    try {
+      if (!this.isConnected) return null;
+      
+      const key = `breakout:${roomId}`;
+      const data = await this.client.get(key);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('❌ Redis getBreakoutRoom error:', error);
+      return null;
+    }
+  }
+
+  async getBreakoutRooms(sessionId) {
+    try {
+      if (!this.isConnected) return [];
+      
+      const sessionKey = `session:${sessionId}:breakouts`;
+      const roomIds = await this.client.sMembers(sessionKey);
+      const rooms = [];
+      
+      for (const roomId of roomIds) {
+        const roomData = await this.getBreakoutRoom(roomId);
+        if (roomData && roomData.isActive) {
+          rooms.push(roomData);
+        } else if (!roomData) {
+          // Clean up orphaned room ID
+          await this.client.sRem(sessionKey, roomId);
+        }
+      }
+      
+      console.log(`📋 Retrieved ${rooms.length} breakout rooms for session ${sessionId}`);
+      return rooms;
+    } catch (error) {
+      console.error('❌ Redis getBreakoutRooms error:', error);
+      return [];
+    }
+  }
+
+  async deleteBreakoutRoom(roomId) {
+    try {
+      if (!this.isConnected) return false;
+      
+      const roomData = await this.getBreakoutRoom(roomId);
+      if (roomData) {
+        const sessionKey = `session:${roomData.parentSessionId}:breakouts`;
+        await this.client.sRem(sessionKey, roomId);
+      }
+      
+      const key = `breakout:${roomId}`;
+      await this.client.del(key);
+      
+      console.log(`🗑️ Breakout room deleted: ${roomId}`);
+      return true;
+    } catch (error) {
+      console.error('❌ Redis deleteBreakoutRoom error:', error);
+      return false;
+    }
+  }
 }
 
 // Create singleton instance

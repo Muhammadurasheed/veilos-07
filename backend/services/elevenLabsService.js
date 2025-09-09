@@ -36,6 +36,11 @@ class ElevenLabsService {
   // Validate API key
   async validateApiKey() {
     try {
+      if (!this.apiKey || this.apiKey === 'your_elevenlabs_api_key_here') {
+        console.error('❌ ElevenLabs API key not configured properly in backend/.env');
+        return { valid: false, error: 'API key not configured' };
+      }
+      
       const response = await axios.get(`${this.baseUrl}/user`, {
         headers: this.getHeaders()
       });
@@ -43,7 +48,7 @@ class ElevenLabsService {
       console.log('✅ ElevenLabs API key validated successfully');
       return { valid: true, user: response.data };
     } catch (error) {
-      console.error('❌ ElevenLabs API key validation failed:', error.message);
+      console.error('❌ ElevenLabs API key validation failed:', error.response?.status === 401 ? 'Invalid API key - please check your ELEVENLABS_API_KEY in backend/.env' : error.message);
       return { valid: false, error: error.message };
     }
   }
