@@ -621,7 +621,14 @@ const ComprehensiveAudioSettings = ({
                               {room.participants} participants
                             </span>
                           </div>
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              // TODO: Implement room management functionality
+                              console.log('Managing room:', room.id);
+                            }}
+                          >
                             Manage
                           </Button>
                         </div>

@@ -91,6 +91,7 @@ const chatRoutes = require('./routes/chatRoutes');
 const sessionRatingRoutes = require('./routes/sessionRatingRoutes');
 const hostRecoveryRoutes = require('./routes/hostRecoveryRoutes');
 const agoraRoutes = require('./routes/agoraRoutes');
+const breakoutRoutes = require('./routes/breakoutRoomRoutes');
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -132,6 +133,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/sessions', sessionRatingRoutes);
 app.use('/api/host-recovery', hostRecoveryRoutes);
 app.use('/api/agora', agoraRoutes);
+app.use('/api/live-sanctuary', breakoutRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

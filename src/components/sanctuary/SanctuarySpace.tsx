@@ -17,7 +17,7 @@ import { SanctuaryApi } from '@/services/api';
 import { SanctuaryMessage } from '@/types';
 import { Shield, Send, Clock, Users, MoreHorizontal, Flag, Mic, MicOff, Volume2, Settings } from 'lucide-react';
 import LiveAudioRoom from '@/components/sanctuary/LiveAudioRoom';
-import BreakoutRoomManager from '@/components/sanctuary/BreakoutRoomManager';
+import { FunctionalBreakoutManager } from '@/components/sanctuary/FunctionalBreakoutManager';
 import SessionRecorder from '@/components/sanctuary/SessionRecorder';
 import AIModerationDashboard from '@/components/sanctuary/AIModerationDashboard';
 import { RealTimeChat } from '@/components/sanctuary/RealTimeChat';
@@ -530,12 +530,13 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
                 Create and manage breakout rooms for smaller group discussions
               </DialogDescription>
             </DialogHeader>
-            <BreakoutRoomManager 
+            <FunctionalBreakoutManager 
               sessionId={session.id}
               isHost={isHost}
               onJoinRoom={(roomId) => {
                 console.log('Joining room:', roomId);
                 setShowBreakoutRooms(false);
+                // TODO: Navigate to breakout room
               }}
             />
           </DialogContent>
