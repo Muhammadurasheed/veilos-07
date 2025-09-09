@@ -83,7 +83,7 @@ export const ResizableSidebar = ({
       ref={sidebarRef}
       className={cn(
         "relative bg-background border-r border-border transition-all duration-200 ease-in-out",
-        "z-[9999]", // Highest z-index to stay above all components
+        "z-[99999]", // Highest z-index to stay above all components
         isResizing && "select-none",
         className
       )}
@@ -118,7 +118,7 @@ export const ResizableSidebar = ({
 
       {/* Resizing overlay */}
       {isResizing && (
-        <div className="fixed inset-0 z-[10000] cursor-col-resize" />
+        <div className="fixed inset-0 z-[100000] cursor-col-resize" />
       )}
     </div>
   );

@@ -1,6 +1,8 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const LiveSanctuarySession = require('../models/LiveSanctuarySession');
+const BreakoutRoom = require('../models/BreakoutRoom');
 
 let io;
 

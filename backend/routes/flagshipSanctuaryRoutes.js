@@ -51,15 +51,18 @@ async function convertScheduledToLive(sessionId, userId, res = null, internalCal
     }
 
     // Create live session
+    const liveSessionId = `flagship-${nanoid(8)}`;
+    const uniqueChannelName = `sanctuary_${liveSessionId}`;  // Use unique channel name
+    
     const liveSession = new LiveSanctuarySession({
-      id: `flagship-${nanoid(8)}`,
+      id: liveSessionId,
       topic: scheduledSession.topic,
       description: scheduledSession.description,
       emoji: scheduledSession.emoji,
       hostId: scheduledSession.hostId,
       hostAlias: scheduledSession.hostAlias,
       hostToken,
-      agoraChannelName: channelName,
+      agoraChannelName: uniqueChannelName,
       agoraToken,
       maxParticipants: scheduledSession.maxParticipants,
       allowAnonymous: scheduledSession.allowAnonymous,

@@ -21,6 +21,11 @@ import { FunctionalBreakoutManager } from '@/components/sanctuary/FunctionalBrea
 import SessionRecorder from '@/components/sanctuary/SessionRecorder';
 import AIModerationDashboard from '@/components/sanctuary/AIModerationDashboard';
 import { RealTimeChat } from '@/components/sanctuary/RealTimeChat';
+import { ResizableChatPanel } from './ResizableChatPanel';
+import ComprehensiveAudioSettings from './ComprehensiveAudioSettings';
+import { AnimatedReactionSystem } from './AnimatedReactionSystem';
+import { WorkingBreakoutRoomManager } from './WorkingBreakoutRoomManager';
+import { ModernScrollbar } from '../ui/modern-scrollbar';
 
 // Create a mock function for generating a random avatar color
 const getAvatarColor = (alias: string): string => {
@@ -342,6 +347,18 @@ const SanctuarySpace: React.FC<SanctuarySpaceProps> = ({ isHost = false }) => {
     };
     
     setMessages(prev => [...prev, message]);
+  };
+
+  // Reaction handler
+  const handleSendReaction = (emoji: string) => {
+    // TODO: Implement socket emission for reactions
+    console.log('Sending reaction:', emoji);
+  };
+
+  // Breakout room handler
+  const handleJoinBreakoutRoom = (roomId: string) => {
+    // TODO: Implement breakout room joining logic
+    console.log('Joining breakout room:', roomId);
   };
   
   // Toggle audio (mock functionality)

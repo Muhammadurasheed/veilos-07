@@ -92,6 +92,7 @@ const ComprehensiveAudioSettings = ({
   // Breakout room states
   const [breakoutRooms, setBreakoutRooms] = useState<Array<{id: string, name: string, participants: number}>>([]);
   const [newRoomName, setNewRoomName] = useState('');
+  const [selectedRoom, setSelectedRoom] = useState<any>(null);
 
   // Load audio devices
   useEffect(() => {
@@ -624,10 +625,7 @@ const ComprehensiveAudioSettings = ({
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => {
-                              // TODO: Implement room management functionality
-                              console.log('Managing room:', room.id);
-                            }}
+                            onClick={() => setSelectedRoom(room)}
                           >
                             Manage
                           </Button>
