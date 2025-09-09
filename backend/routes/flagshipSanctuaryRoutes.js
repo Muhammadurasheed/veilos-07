@@ -916,9 +916,6 @@ router.post('/:sessionId/join', optionalAuthMiddleware, async (req, res) => {
     }
 
     const participantAlias = alias || req.user?.alias || `Guest_${nanoid(4)}`;
-        message: 'Session is full'
-      });
-    }
 
     // Generate user ID for anonymous users
     const userId = req.user?.id || `anon_${nanoid(8)}`;
