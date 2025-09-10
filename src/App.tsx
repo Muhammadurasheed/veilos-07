@@ -160,6 +160,11 @@ const App: React.FC = () => {
                         <Route path="/sanctuary/:sessionId" element={<EnhancedSanctuary />} />
                         <Route path="/flagship-sanctuary" element={<FlagshipSanctuaryCreate />} />
                         <Route path="/flagship-sanctuary/:sessionId" element={<FlagshipSanctuary />} />
+                        <Route path="/flagship-sanctuary/:sessionId/breakout/:roomId" element={
+                          <ProtectedRoute requireAuth={true}>
+                            <div>Breakout Room Component</div>
+                          </ProtectedRoute>
+                        } />
                         <Route path="/phase4-test" element={<Phase4Test />} />
                         <Route path="*" element={<NotFound />} />
               </Routes>

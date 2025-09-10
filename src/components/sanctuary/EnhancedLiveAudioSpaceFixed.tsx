@@ -434,8 +434,9 @@ export const EnhancedLiveAudioSpace = ({ session, currentUser, onLeave }: Enhanc
             )}
           </div>
 
-          {/* Sidebar - Participants */}
+          {/* Sidebar */}
           <div className="lg:col-span-1">
+            {/* Participants */}
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -573,11 +574,14 @@ export const EnhancedLiveAudioSpace = ({ session, currentUser, onLeave }: Enhanc
                     if (response.ok) {
                       const data = await response.json();
                       
+                      // Navigate to breakout room (same window for better UX)
+                      const breakoutUrl = `/flagship-sanctuary/${session.id}/breakout/${roomId}?channel=${data.data.room.agoraChannelName}&token=${data.data.room.agoraToken}`;
+                      window.location.href = breakoutUrl;
+                      
                       toast({
-                        title: "Breakout Room Created",
-                        description: `Successfully joined ${data.data.room.name}`,
+                        title: "Joining Breakout Room",
+                        description: `Connecting to ${data.data.room.name}...`,
                       });
-                      setShowBreakoutManager(false);
                     } else {
                       const errorData = await response.json();
                       toast({
